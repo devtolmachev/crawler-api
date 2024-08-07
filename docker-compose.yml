@@ -1,0 +1,14 @@
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 7897:5500
+
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+
+    container_name: crawler-api
