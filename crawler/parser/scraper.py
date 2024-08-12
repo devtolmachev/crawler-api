@@ -71,13 +71,14 @@ async def get_links(url: str, __cache=[], timeout: int = 5):
 def filter_links(links: list[str], url: str = None) -> list[str]:
     if not links:
         raise ValueError(f"Not links: {links}")
-    
+
     links = [
         f"{l.split("://")[0]}://{l.split("://")[1].replace("//", "/")}"
         for l in links
         if not re.findall(r"(.+)\..{2,4}$", l)
+        and all(not l.count(symbol) for symbol in ["#", "?"])
     ]
-    
+
     if url:
         linkss = links.copy()
         links = []
@@ -87,10 +88,10 @@ def filter_links(links: list[str], url: str = None) -> list[str]:
                     links.append(link)
             except (IndexError, KeyError):
                 continue
-    
-    return list(sorted(links))
-    
-    
+
+    return list(sorted(list(set(links))))
+
+
 async def scrap_links(url: str, queue: asyncio.Queue = None):
     url = url + "/" if not url.endswith("/") else url
     links = []
@@ -112,14 +113,13 @@ async def scrap_links(url: str, queue: asyncio.Queue = None):
         *tasks,
         return_exceptions=True,
     )
-    
+
     return filter_links(links, url=url)
 
 
 async def main():
-    
     links = open("results.txt").read().split()
-    
+
     urls = ["https://lookilife.nl"]
     urls = ["https://neostyle-nn.ru/sofas/"]
 
