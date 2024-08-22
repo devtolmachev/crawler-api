@@ -25,9 +25,7 @@ async def iter_links(html: str, base_domain: str):
 
 async def get_html(url: str, timeout: int = 5):
     headers = append_ua_to_headers()
-    httpx_client = httpx.AsyncClient(
-        headers=headers, timeout=httpx.Timeout(timeout)
-    )
+    httpx_client = httpx.AsyncClient(headers=headers, timeout=httpx.Timeout(timeout))
     html = await request_parser.get_html(client=httpx_client, url=url)
 
     if not isinstance(html, str):
@@ -84,8 +82,10 @@ def filter_links(links: list[str], url: str = None) -> list[str]:
         links = []
         for link in linkss:
             try:
-                if link.startswith(url):
-                    links.append(link)
+                if link.startswith(url) and all(
+                    l not in links for l in [link, link + "/", link.rstrip("/")]
+                ):
+                    links.append(link.rstrip("/"))
             except (IndexError, KeyError):
                 continue
 
@@ -118,16 +118,17 @@ async def scrap_links(url: str, queue: asyncio.Queue = None):
 
 
 async def main():
-    links = open("results.txt").read().split()
-
-    urls = ["https://lookilife.nl"]
+    # links = open("results.txt").read().split()
+    
+    
     urls = ["https://neostyle-nn.ru/sofas/"]
+    urls = ["https://lookilife.nl"]
 
     for url in urls:
         start = datetime.now()
         links = await scrap_links(url)
 
-        with open("results.txt", "w") as f:
+        with open("results2.txt", "w") as f:
             f.write(f"{"\n".join(links)}")
 
         print(f"Crawle {len(links)} from url: {url}, at {datetime.now()-start}")

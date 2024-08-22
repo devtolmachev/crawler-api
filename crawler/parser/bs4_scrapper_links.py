@@ -1,3 +1,4 @@
+import re
 import bs4
 
 from crawler.parser.utils import error_handler
@@ -23,8 +24,11 @@ def scrap_links_from_html(html: str, base_domain: str) -> list[str]:
         if proto not in protos:
             continue
         
+        updated_domain_url = re.sub(r"/{2,}", "/", link.split(f"{proto}://")[1])
+        full_url = f"{proto}://{updated_domain_url}"
+        
         if link not in links:
-            links.append(link)
+            links.append(full_url)
     
     return list(set(links))
 
