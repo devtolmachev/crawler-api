@@ -102,6 +102,7 @@ async def scrap_links(url: str, queue: asyncio.Queue = None):
 
     async def crawl_all_links(link, cache=[]):
         nonlocal links
+        ...
         async for link in get_links(link, __cache=links.copy()):
             if link not in links:
                 if queue:
