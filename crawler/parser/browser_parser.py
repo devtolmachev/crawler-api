@@ -12,7 +12,7 @@ links = []
 
 @error_handler
 async def get_html(page: Page, url: str):
-    await page.goto(url)
+    await page.goto(url, wait_until="domcontentloaded")
     return await page.content()
 
 

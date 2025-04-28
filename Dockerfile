@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY pyproject.toml /app/
 RUN poetry install --no-interaction --no-root
-RUN poetry run playwright install chromium --with-deps --force
+RUN poetry run playwright install firefox --with-deps --force
 
 COPY . /app/
 

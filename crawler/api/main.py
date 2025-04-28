@@ -18,9 +18,9 @@ async def set_post_request(url: str, data: str | dict):
 
 
 @app.get("/get_links")
-async def get_links(url: str):
+async def get_links(url: str, slice: int = None):
     start = datetime.now()
-    result = await scrap_links(url=url)
+    result = await scrap_links(url=url, max_links_count=slice)
     ms = (datetime.now() - start).microseconds
     return {"took_ms": ms, "resilt": result}
 

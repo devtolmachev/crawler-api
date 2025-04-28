@@ -10,6 +10,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
+    volumes:
+      - ./:/app
 
     restart: on-failure
     container_name: crawler-api
