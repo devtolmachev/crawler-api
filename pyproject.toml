@@ -17,6 +17,8 @@ uvicorn = {extras = ["standard"], version = "^0.30.5"}
 playwright = "^1.51.0"
 uvloop = "^0.21.0"
 httpx = "^0.28.1"
+orjson = "^3.10.18"
+aiohttp = "^3.11.18"
 
 
 [build-system]

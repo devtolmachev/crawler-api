@@ -5,12 +5,14 @@ import random
 import re
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import partial
+import time
 
 import httpx
 from loguru import logger
 import uvloop
 from playwright.async_api import Browser, async_playwright
 
+from crawler.api.sender import send_links_to
 from crawler.parser import request_parser, browser_parser
 from crawler.parser.bs4_scrapper_links import scrap_links_from_html
 from crawler.parser.utils import append_ua_to_headers
@@ -19,14 +21,13 @@ from crawler.parser.utils import append_ua_to_headers
 GLOBAL_THREAD_POOL = ThreadPoolExecutor()
 GLOBAL_ASYNC_SEMAPHORE = asyncio.Semaphore(max(30, os.cpu_count() or 1 + 6))
 
+
 async def iter_links(html: str, base_domain: str):
     global GLOBAL_THREAD_POOL
     loop = asyncio.get_running_loop()
     links = await loop.run_in_executor(
         GLOBAL_THREAD_POOL,
-        partial(
-            scrap_links_from_html, html=html, base_domain=base_domain
-        )
+        partial(scrap_links_from_html, html=html, base_domain=base_domain),
     )
     if not links:
         logger.error(f"Not found links on url: {base_domain}")
@@ -60,7 +61,12 @@ async def get_html(url: str, browser: Browser, timeout: int = 5):
     return html
 
 
-async def get_links(url: str, browser: Browser, __cache=[], timeout: int = 5):
+async def get_links(
+    url: str,
+    browser: Browser,
+    __cache=[],
+    timeout: int = 5,
+):
     links = __cache or []
     proto, base_domain = url.split("://")
     base_domain = base_domain.split("/")[0]
@@ -81,7 +87,7 @@ def filter_links(links: list[str], url: str = None) -> list[str]:
         raise ValueError(f"Not links: {links}")
 
     links = [
-        f"{l.split("://")[0]}://{l.split("://")[1].replace("//", "/")}"
+        f"{l.split('://')[0]}://{l.split('://')[1].replace('//', '/')}"
         for l in links
         if not re.findall(r"(.+)\..{2,4}$", l)
         and all(not l.count(symbol) for symbol in ["#", "?"])
@@ -102,7 +108,9 @@ def filter_links(links: list[str], url: str = None) -> list[str]:
     return list(sorted(list(set(links))))
 
 
-async def scrap_links(url: str, queue: asyncio.Queue = None, max_links_count: int = None):
+async def scrap_links(
+    url: str, queue: asyncio.Queue = None, max_links_count: int = None
+):
     url = url + "/" if not url.endswith("/") else url
     links = []
     async with async_playwright() as plw:
@@ -118,7 +126,8 @@ async def scrap_links(url: str, queue: asyncio.Queue = None, max_links_count: in
             if max_links_count and len(links) >= max_links_count:
                 return
             async for link in get_links(link, browser, __cache=links.copy()):
-                
+                if max_links_count and len(links) >= max_links_count:
+                    return
                 if link not in links:
                     if queue:
                         await queue.put(link)
@@ -129,14 +138,42 @@ async def scrap_links(url: str, queue: asyncio.Queue = None, max_links_count: in
             *tasks,
             return_exceptions=True,
         )
+
+    return filter_links(
+        links if not max_links_count else links[:max_links_count], url=url
+    )
+
+
+async def scrap_links_and_send_to(
+    endpoint_url: str, website_url: str, website_id: str, slice: int
+):
+    results = []
+    start = time.time()
+    ok = False
+    message = ""
     
-    return filter_links(links if not max_links_count else links[:max_links_count], url=url)
+    try:
+        results = await scrap_links(website_url, max_links_count=slice)
+        ok = True
+        message = f"successfully parsed {len(results)} links on {website_url}"
+    except Exception as e:
+        message = f"error: {e}"
+        logger.exception(e)
+    finally:
+        took_ms = time.time() - start
+        await send_links_to(
+            endpoint_url,
+            results,
+            took_ms=took_ms,
+            message=message,
+            website_id=website_id,
+            ok=ok,
+        )
 
 
 async def main():
     # links = open("results.txt").read().split()
-    
-    
+
     urls = ["https://neostyle-nn.ru/sofas/"]
     urls = ["https://lookilife.nl"]
 
@@ -145,9 +182,9 @@ async def main():
         links = await scrap_links(url)
 
         with open("results2.txt", "w") as f:
-            f.write(f"{"\n".join(links)}")
+            f.write(f"{'\n'.join(links)}")
 
-        print(f"Crawle {len(links)} from url: {url}, at {datetime.now()-start}")
+        print(f"Crawle {len(links)} from url: {url}, at {datetime.now() - start}")
     ...
 
 

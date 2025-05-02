@@ -1,11 +1,13 @@
 import asyncio
 from datetime import datetime
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 import httpx
 import uvloop
 import uvicorn
 
-from crawler.parser.scraper import scrap_links
+from pydantic import BaseModel
+
+from crawler.parser.scraper import scrap_links, scrap_links_and_send_to
 from crawler.parser.utils import error_handler
 
 app = FastAPI()
@@ -17,34 +19,46 @@ async def set_post_request(url: str, data: str | dict):
         await client.post(url, data=data)
 
 
-@app.get("/get_links")
-async def get_links(url: str, slice: int = None):
-    start = datetime.now()
-    result = await scrap_links(url=url, max_links_count=slice)
-    ms = (datetime.now() - start).microseconds
-    return {"took_ms": ms, "resilt": result}
+class TaskBody(BaseModel):
+    website_id: str
+    website_url: str
+    endpoint_url: str
+    slice: int | None
 
-@app.get("/working")
-async def get_links():
-    return {"working": True}
+
+@app.post("/get_links")
+async def get_links(task: TaskBody):
+    loop = asyncio.get_running_loop()
+    asyncio.eager_task_factory(
+        loop=loop,
+        coro=scrap_links_and_send_to(
+            endpoint_url=task.endpoint_url,
+            website_id=task.website_id,
+            slice=task.slice,
+            website_url=task.website_url,
+        ),
+    )
+    return {
+        "ok": True,
+        "message": f"task has been created and result will send on {task.endpoint_url}",
+    }
 
 
 @app.post("/put_links")
 async def long_task(url: str, webhook_url: str):
-    
     @error_handler
     async def get_links(queue: asyncio.Queue):
         while True:
             start = datetime.now()
             data = await queue.get()
-            
+
             if data == "finish":
                 break
-            
+
             ms = (datetime.now() - start).microseconds
             response = {"took_ms": ms, "resilt": [data]}
             await set_post_request(webhook_url, response)
-    
+
     q = asyncio.Queue()
     await asyncio.gather(get_links(q), scrap_links(url, queue=q))
 
