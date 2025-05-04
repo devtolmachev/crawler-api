@@ -11,6 +11,7 @@ import httpx
 from loguru import logger
 import uvloop
 from playwright.async_api import Browser, async_playwright
+import yarl
 
 from crawler.api.sender import send_links_to
 from crawler.parser import request_parser, browser_parser
@@ -37,11 +38,20 @@ async def iter_links(html: str, base_domain: str):
         yield link
 
 
-async def get_html(url: str, browser: Browser, timeout: int = 5):
+async def get_html(
+    url: str, browser: Browser, timeout: int = 5, proxy_for_requests: str = None
+):
     global GLOBAL_ASYNC_SEMAPHORE
     headers = append_ua_to_headers()
     httpx_client = httpx.AsyncClient(headers=headers, timeout=httpx.Timeout(timeout))
     html = await request_parser.get_html(client=httpx_client, url=url)
+
+    # try with proxy
+    if not isinstance(html, str):
+        httpx_client = httpx.AsyncClient(
+            headers=headers, timeout=httpx.Timeout(timeout), proxy=proxy_for_requests
+        )
+        html = await request_parser.get_html(client=httpx_client, url=url)
 
     if not isinstance(html, str):
         extra_http_headers = headers.copy()
@@ -56,21 +66,17 @@ async def get_html(url: str, browser: Browser, timeout: int = 5):
         if not isinstance(html, str):
             logger.error(f"Error when trying to get full html on: {url}")
             await asyncio.sleep(random.uniform(1, 3))
-            return
 
     return html
 
 
 async def get_links(
-    url: str,
-    browser: Browser,
-    __cache=[],
-    timeout: int = 5,
+    url: str, browser: Browser, __cache=[], timeout: int = 5, proxy: str = None
 ):
     links = __cache or []
     proto, base_domain = url.split("://")
     base_domain = base_domain.split("/")[0]
-    html = await get_html(url, browser, timeout=timeout)
+    html = await get_html(url, browser, timeout=timeout, proxy_for_requests=proxy)
     if not isinstance(html, str):
         for link in links:
             yield link
@@ -109,13 +115,25 @@ def filter_links(links: list[str], url: str = None) -> list[str]:
 
 
 async def scrap_links(
-    url: str, queue: asyncio.Queue = None, max_links_count: int = None
+    url: str,
+    queue: asyncio.Queue = None,
+    max_links_count: int = None,
+    proxy: yarl.URL = None,
 ):
     url = url + "/" if not url.endswith("/") else url
     links = []
     async with async_playwright() as plw:
-        browser = await plw.firefox.launch(headless=True)
-        async for link in get_links(url, browser):
+        browser = await plw.firefox.launch(
+            headless=True,
+            proxy={
+                "password": proxy.password,
+                "username": proxy.user,
+                "server": f"{proxy.scheme}://{proxy.host}:{proxy.port}",
+            }
+            if proxy
+            else None,
+        )
+        async for link in get_links(url, browser, proxy=proxy):
             if queue:
                 await queue.put(link)
             links.append(link)
@@ -125,7 +143,9 @@ async def scrap_links(
             ...
             if max_links_count and len(links) >= max_links_count:
                 return
-            async for link in get_links(link, browser, __cache=links.copy()):
+            async for link in get_links(
+                link, browser, __cache=links.copy(), proxy=proxy
+            ):
                 if max_links_count and len(links) >= max_links_count:
                     return
                 if link not in links:
@@ -145,15 +165,19 @@ async def scrap_links(
 
 
 async def scrap_links_and_send_to(
-    endpoint_url: str, website_url: str, website_id: str, slice: int
+    endpoint_url: str,
+    website_url: str,
+    website_id: str,
+    slice: int,
+    try_proxy: str = None,
 ):
     results = []
     start = time.time()
     ok = False
     message = ""
-    
+
     try:
-        results = await scrap_links(website_url, max_links_count=slice)
+        results = await scrap_links(website_url, max_links_count=slice, proxy=yarl.URL(try_proxy))
         ok = True
         message = f"successfully parsed {len(results)} links on {website_url}"
     except Exception as e:

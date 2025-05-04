@@ -8,7 +8,7 @@ import uvicorn
 from pydantic import BaseModel
 
 from crawler.parser.scraper import scrap_links, scrap_links_and_send_to
-from crawler.parser.utils import error_handler
+from crawler.parser.utils import error_handler, get_proxy_iproyal
 
 app = FastAPI()
 
@@ -23,12 +23,17 @@ class TaskBody(BaseModel):
     website_id: str
     website_url: str
     endpoint_url: str
-    slice: int | None
+    slice: int | None = None
+    proxy: str | None = None
 
 
 @app.post("/get_links")
 async def get_links(task: TaskBody):
     loop = asyncio.get_running_loop()
+    proxy = task.proxy
+    if not proxy:
+        proxy = get_proxy_iproyal(session_seconds=200)
+        
     asyncio.eager_task_factory(
         loop=loop,
         coro=scrap_links_and_send_to(
@@ -36,6 +41,7 @@ async def get_links(task: TaskBody):
             website_id=task.website_id,
             slice=task.slice,
             website_url=task.website_url,
+            try_proxy=proxy
         ),
     )
     return {

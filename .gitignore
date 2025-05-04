@@ -6,7 +6,7 @@ __pycache__/
 # Custom
 *.txt
 poetry.lock
-
+proxies.txt
 
 # C extensions
 *.so

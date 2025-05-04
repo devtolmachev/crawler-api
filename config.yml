@@ -1,0 +1,6 @@
+proxy:
+  iproyal:
+    username: $IPROYAL_USERNAME
+    password: $IPROYAL_PASSWORD
+    host: $IPROYAL_HOST
+    port: $IPROYAL_PORT

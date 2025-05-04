@@ -8,7 +8,7 @@ async def send_links_to(
     took_ms: float,
     message: str,
     website_id: str,
-    ok: bool = True
+    ok: bool = True,
 ):
     request_body = {
         "success": ok,
