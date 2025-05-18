@@ -133,7 +133,7 @@ async def scrap_links(
             if proxy
             else None,
         )
-        async for link in get_links(url, browser, proxy=proxy):
+        async for link in get_links(url, browser, proxy=str(proxy) if proxy else None):
             if queue:
                 await queue.put(link)
             links.append(link)
@@ -144,7 +144,7 @@ async def scrap_links(
             if max_links_count and len(links) >= max_links_count:
                 return
             async for link in get_links(
-                link, browser, __cache=links.copy(), proxy=proxy
+                link, browser, __cache=links.copy(), proxy=str(proxy) if proxy else None
             ):
                 if max_links_count and len(links) >= max_links_count:
                     return
