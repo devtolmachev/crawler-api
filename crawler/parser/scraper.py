@@ -43,13 +43,13 @@ async def get_html(
 ):
     global GLOBAL_ASYNC_SEMAPHORE
     headers = append_ua_to_headers()
-    httpx_client = httpx.AsyncClient(headers=headers, timeout=httpx.Timeout(timeout))
+    httpx_client = httpx.AsyncClient(headers=headers, timeout=httpx.Timeout(timeout), verify=False)
     html = await request_parser.get_html(client=httpx_client, url=url)
 
     # try with proxy
     if not isinstance(html, str):
         httpx_client = httpx.AsyncClient(
-            headers=headers, timeout=httpx.Timeout(timeout), proxy=proxy_for_requests
+            headers=headers, timeout=httpx.Timeout(timeout), proxy=proxy_for_requests, verify=False
         )
         html = await request_parser.get_html(client=httpx_client, url=url)
 
